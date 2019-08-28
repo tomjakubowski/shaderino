@@ -5,12 +5,23 @@ use glium::glutin::{
     window::WindowBuilder,
     ContextBuilder, GlRequest,
 };
-
 use glium::{implement_vertex, index, uniform, Display, Program, Surface, VertexBuffer};
+use std::{fs, path::PathBuf, process};
+use structopt::StructOpt;
 
 fn main() {
+    let opts = Opts::from_args();
+
+    let fragment_shader_src = match fs::read_to_string(&opts.file) {
+        Ok(src) => src,
+        Err(e) => {
+            eprintln!("Error reading {}: {}", opts.file.display(), e);
+            process::exit(1);
+        }
+    };
+
     let el = EventLoop::new();
-    let wb = WindowBuilder::new().with_title("shaderforge");
+    let wb = WindowBuilder::new().with_title("shaderino");
 
     let windowed_context = ContextBuilder::new()
         .with_gl(GlRequest::Specific(glutin::Api::OpenGlEs, (2, 0)))
@@ -42,26 +53,8 @@ fn main() {
         }
     "#;
 
-    let fragment_shader_src = r#"
-        #ifdef GL_ES
-        precision mediump float;
-        #endif
-
-        uniform vec2 u_resolution;
-        uniform float u_time;
-
-        void main() {
-            vec2 st = gl_FragCoord.xy/u_resolution.xy;
-            st.x *= u_resolution.x/u_resolution.y;
-
-            vec3 color = vec3(0.);
-            color = vec3(st.x,st.y,abs(sin(u_time)));
-
-            gl_FragColor = vec4(color,1.0);
-        }
-    "#;
     let program =
-        Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
+        Program::from_source(&display, vertex_shader_src, &fragment_shader_src, None).unwrap();
 
     #[derive(Debug)]
     struct State {
@@ -101,7 +94,7 @@ fn main() {
         }
 
         let mut target = display.draw();
-        target.clear_color(0.0, 0.0, 1.0, 1.0);
+        target.clear_color(0.0, 0.0, 0.0, 1.0);
 
         let since_epoch = now.duration_since(epoch);
         let u_time = since_epoch.as_secs() as f64 + (since_epoch.subsec_micros() as f64 * 1e-6);
@@ -121,4 +114,11 @@ fn main() {
             .unwrap();
         target.finish().unwrap();
     });
+}
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "shaderino")]
+struct Opts {
+    #[structopt(name = "FILE", parse(from_os_str))]
+    file: PathBuf,
 }
