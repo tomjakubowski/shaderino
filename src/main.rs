@@ -1,4 +1,4 @@
-use glium::glutin::event::{Event, WindowEvent};
+use glium::glutin::event::{Event, StartCause, WindowEvent};
 use glium::glutin::event_loop::{ControlFlow, EventLoop};
 use glium::glutin::window::WindowBuilder;
 use glium::glutin::ContextBuilder;
@@ -9,7 +9,10 @@ fn main() {
     let el = EventLoop::new();
     let wb = WindowBuilder::new().with_title("shaderforge");
 
-    let windowed_context = ContextBuilder::new().build_windowed(wb, &el).unwrap();
+    let windowed_context = ContextBuilder::new()
+        .with_vsync(true)
+        .build_windowed(wb, &el)
+        .unwrap();
     let display = Display::from_gl_window(windowed_context).unwrap();
     // let windowed_context = unsafe { windowed_context.make_current().unwrap() };
     println!(
@@ -55,22 +58,32 @@ fn main() {
         out vec4 color;
 
         void main() {
-          color = vec4(1.0, 0.0, 0.0, 1.0);
+          color = vec4(0.0, 1.0, 0.0, 1.0);
         }
     "#;
     let program =
         Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
 
     el.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        let next_frame_time =
+            std::time::Instant::now() + std::time::Duration::from_nanos(16_666_667);
+        *control_flow = ControlFlow::WaitUntil(next_frame_time);
 
         match event {
             Event::LoopDestroyed => return,
             Event::WindowEvent { ref event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => (),
+                WindowEvent::CloseRequested => {
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+                _ => return,
             },
-            _ => (),
+            Event::NewEvents(cause) => match cause {
+                StartCause::ResumeTimeReached { .. } => (),
+                StartCause::Init => (),
+                _ => return,
+            },
+            _ => return,
         }
 
         let mut target = display.draw();
