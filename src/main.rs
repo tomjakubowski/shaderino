@@ -1,7 +1,10 @@
-use glium::glutin::event::{Event, StartCause, WindowEvent};
-use glium::glutin::event_loop::{ControlFlow, EventLoop};
-use glium::glutin::window::WindowBuilder;
-use glium::glutin::ContextBuilder;
+use glium::glutin::{
+    self,
+    event::{Event, StartCause, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+    ContextBuilder, GlRequest,
+};
 
 use glium::{implement_vertex, index, Display, Program, Surface, VertexBuffer};
 
@@ -10,6 +13,7 @@ fn main() {
     let wb = WindowBuilder::new().with_title("shaderforge");
 
     let windowed_context = ContextBuilder::new()
+        .with_gl(GlRequest::Specific(glutin::Api::OpenGlEs, (2, 0)))
         .with_vsync(true)
         .build_windowed(wb, &el)
         .unwrap();
@@ -41,10 +45,9 @@ fn main() {
     let indices = index::NoIndices(index::PrimitiveType::TriangleStrip);
 
     let vertex_shader_src = r#"
-        #version 140
+        #version 110
 
         in vec2 pos;
-        out vec2 v_uv;
 
         void main() {
           gl_Position = vec4(pos, 0.0, 1.0);
@@ -52,13 +55,15 @@ fn main() {
     "#;
 
     let fragment_shader_src = r#"
-        #version 140
+        #version 110
 
-        in vec2 v_uv;
-        out vec4 color;
+        #ifdef GL_ES
+        precision mediump float;
+        #endif
 
         void main() {
-          color = vec4(0.0, 1.0, 0.0, 1.0);
+          float x = 1.0;
+          gl_FragColor = vec4(0.0, x, 0.0, 1.0);
         }
     "#;
     let program =
@@ -76,6 +81,7 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
+                WindowEvent::RedrawRequested => (),
                 _ => return,
             },
             Event::NewEvents(cause) => match cause {
