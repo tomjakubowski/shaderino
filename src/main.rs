@@ -24,7 +24,6 @@ fn main() {
     let wb = WindowBuilder::new().with_title("shaderino");
 
     let windowed_context = ContextBuilder::new()
-        .with_gl(GlRequest::Specific(glutin::Api::OpenGlEs, (2, 0)))
         .with_vsync(true)
         .build_windowed(wb, &el)
         .unwrap();
@@ -58,19 +57,21 @@ fn main() {
 
     #[derive(Debug)]
     struct State {
+        mouse: [f32; 2],
         resolution: [f32; 2],
     }
     let mut state = State {
+        mouse: [0.0, 0.0],
         resolution: [winsize.width as f32, winsize.height as f32],
     };
 
     let epoch = std::time::Instant::now();
 
     el.run(move |event, _, control_flow| {
-        let now = std::time::Instant::now();
-        let next_frame_time = now + std::time::Duration::from_nanos(16_666_667);
-        *control_flow = ControlFlow::WaitUntil(next_frame_time);
-
+        // Returning from this match block ensures that the scene isn't drawn more than once per
+        // frame.  control_flow is sticky, so the timer still finishes at the correct time after
+        // the event loop is woken up for a window event other than CloseRequested (which
+        // mutates control_flow).
         match event {
             Event::LoopDestroyed => return,
             Event::WindowEvent { ref event, .. } => match event {
@@ -78,20 +79,36 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if input.virtual_keycode == Some(glutin::event::VirtualKeyCode::Q) {
+                        *control_flow = ControlFlow::Exit;
+                        return;
+                    }
+                }
                 WindowEvent::RedrawRequested => (),
                 WindowEvent::Resized(size) => {
                     state.resolution = [size.width as f32, size.height as f32];
                     return;
                 }
+                WindowEvent::CursorMoved { position, .. } => {
+                    let x = position.x as f32;
+                    let y = state.resolution[1] - position.y as f32;
+                    state.mouse = [x, y];
+                    return;
+                }
                 _ => return,
             },
             Event::NewEvents(cause) => match cause {
-                StartCause::ResumeTimeReached { .. } => (),
+                StartCause::ResumeTimeReached { .. } => {}
                 StartCause::Init => (),
                 _ => return,
             },
             _ => return,
         }
+
+        let now = std::time::Instant::now();
+        let next_frame_time = now + std::time::Duration::from_nanos(16_666_667);
+        *control_flow = ControlFlow::WaitUntil(next_frame_time);
 
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
@@ -100,6 +117,7 @@ fn main() {
         let u_time = since_epoch.as_secs() as f64 + (since_epoch.subsec_micros() as f64 * 1e-6);
 
         let uniforms = uniform! {
+            u_mouse: state.mouse,
             u_resolution: state.resolution,
             u_time: u_time as f32,
         };
