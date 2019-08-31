@@ -3,7 +3,7 @@ use glium::glutin::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
-    ContextBuilder, GlRequest,
+    ContextBuilder,
 };
 use glium::{implement_vertex, index, uniform, Display, Program, Surface, VertexBuffer};
 use std::{fs, path::PathBuf, process};
@@ -21,7 +21,18 @@ fn main() {
     };
 
     let el = EventLoop::new();
-    let wb = WindowBuilder::new().with_title("shaderino");
+    let title = if cfg!(debug_assertions) {
+        "shaderino-debug".to_string()
+    } else {
+        "shaderino".to_string()
+    };
+    let mut wb = WindowBuilder::new();
+    #[cfg(unix)]
+    {
+        use glutin::platform::unix::WindowBuilderExtUnix;
+        wb = wb.with_class(title.clone(), title.clone());
+    }
+    wb = wb.with_title(title);
 
     let windowed_context = ContextBuilder::new()
         .with_vsync(true)
