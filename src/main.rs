@@ -9,6 +9,8 @@ use glium::{implement_vertex, index, uniform, Display, Program, Surface, VertexB
 use std::{fs, path::PathBuf, process};
 use structopt::StructOpt;
 
+mod emu;
+
 fn main() {
     let opts = Opts::from_args();
 
@@ -66,17 +68,8 @@ fn main() {
     let program =
         Program::from_source(&display, vertex_shader_src, &fragment_shader_src, None).unwrap();
 
-    #[derive(Debug)]
-    struct State {
-        mouse: [f32; 2],
-        resolution: [f32; 2],
-    }
-    let mut state = State {
-        mouse: [0.0, 0.0],
-        resolution: [winsize.width as f32, winsize.height as f32],
-    };
-
-    let epoch = std::time::Instant::now();
+    let mut vm = emu::GlslViewer::new();
+    vm.set_resolution(winsize.width as f32, winsize.height as f32);
 
     el.run(move |event, _, control_flow| {
         // Returning from this match block ensures that the scene isn't drawn more than once per
@@ -98,13 +91,13 @@ fn main() {
                 }
                 WindowEvent::RedrawRequested => (),
                 WindowEvent::Resized(size) => {
-                    state.resolution = [size.width as f32, size.height as f32];
+                    vm.set_resolution(size.width as f32, size.height as f32);
                     return;
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     let x = position.x as f32;
-                    let y = state.resolution[1] - position.y as f32;
-                    state.mouse = [x, y];
+                    let y = vm.resolution()[1] - position.y as f32;
+                    vm.set_mouse(x, y);
                     return;
                 }
                 _ => return,
@@ -117,27 +110,19 @@ fn main() {
             _ => return,
         }
 
-        let now = std::time::Instant::now();
-        let next_frame_time = now + std::time::Duration::from_nanos(16_666_667);
+        vm.update();
+        let next_frame_time = vm.time() + std::time::Duration::from_nanos(16_666_667);
         *control_flow = ControlFlow::WaitUntil(next_frame_time);
 
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        let since_epoch = now.duration_since(epoch);
-        let u_time = since_epoch.as_secs() as f64 + (since_epoch.subsec_micros() as f64 * 1e-6);
-
-        let uniforms = uniform! {
-            u_mouse: state.mouse,
-            u_resolution: state.resolution,
-            u_time: u_time as f32,
-        };
         target
             .draw(
                 &vertex_buffer,
                 &indices,
                 &program,
-                &uniforms,
+                &vm.uniforms(),
                 &Default::default(),
             )
             .unwrap();
